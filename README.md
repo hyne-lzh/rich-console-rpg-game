@@ -347,14 +347,6 @@ Dual-column check box group for all python-obfuscator native obfuscation functio
 5. Optimized batch processing logic, single file processing failure will not interrupt the entire batch task, log separate record failure file information
    优化批量处理逻辑，单个文件处理失败不会中断整批任务，日志单独记录失败文件信息
 
-## Git Submit & Push Command | Git提交推送命令
-After modifying the source code, execute the following command in CMD/Git Bash to submit and push to remote repository:
-修改源码后，在CMD/Git Bash执行以下命令提交并推送至远程仓库：
-```bash
-git add .
-git commit -m "Optimize multi-engine obfuscator: fix unterminated string syntax bug, remove invalid set_seed method, rewrite safe comment regex, optimize obfuscation pipeline order, enhance batch processing stability, retain AES anti-debug pyc multi-layer composite encryption"
-git push
-```
 
 ## Project File Structure | 项目文件目录
 ```
