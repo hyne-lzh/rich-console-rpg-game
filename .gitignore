@@ -2,6 +2,7 @@
 game_save.json
 # python缓存
 __pycache__/
+.idea/
 *.pyc
 # 日志
 *.log
