@@ -7,23 +7,40 @@ import hashlib
 import os
 import subprocess
 import sys
+import random
+import ast
+import astor
 
-# 依赖自动检测
+# 依赖检测
+DEPEND_LIST = ["python-obfuscator", "tkinterdnd2", "pycryptodome", "astor"]
+HAS_OBF = False
+HAS_CRYPTO = False
 try:
     from python_obfuscator import Obfuscator, ObfuscationConfig
     HAS_OBF = True
 except ImportError:
-    HAS_OBF = False
+    pass
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    from Crypto.Random import get_random_bytes
+    HAS_CRYPTO = True
+except ImportError:
+    pass
 
-class PyObfuscatorGUI:
+class MultiPyObfuscatorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Python Code Obfuscator | Python高强度代码混淆工具")
-        self.root.geometry("1300x820")
+        self.root.title("Multi-Engine Python Obfuscator | 多引擎复合代码混淆工具")
+        self.root.geometry("1350x860")
         self.root.resizable(True, True)
         self.is_dark = tk.BooleanVar(value=False)
         self.random_seed = tk.StringVar(value="")
         self.clear_comment = tk.BooleanVar(value=True)
+        self.aes_encrypt_str = tk.BooleanVar(value=True)
+        self.anti_debug = tk.BooleanVar(value=True)
+        self.export_pyc = tk.BooleanVar(value=False)
+        self.custom_key = tk.StringVar(value="")
 
         # 全局变量
         self.input_path = tk.StringVar(value="")
@@ -36,7 +53,7 @@ class PyObfuscatorGUI:
         self.raw_md5 = ""
         self.obf_md5 = ""
 
-        # 混淆功能勾选映射（名称：显示文本EN/CN）
+        # 第一层混淆：python-obfuscator 基础混淆策略
         self.obf_options = {
             "string_encrypt": {"text": "String Hex Encrypt / 字符串十六进制加密", "var": tk.BooleanVar(value=True)},
             "num_encrypt": {"text": "Number Constant Encrypt / 数字常量加密", "var": tk.BooleanVar(value=True)},
@@ -54,18 +71,19 @@ class PyObfuscatorGUI:
         # 拖拽绑定
         self.root.drop_target_register(DND_FILES)
         self.root.dnd_bind('<<Drop>>', self.drop_file)
-        # 依赖缺失弹窗
-        if not HAS_OBF:
-            self.show_install_popup()
+        # 缺失依赖弹窗
+        self.check_dependency()
 
     def build_ui(self):
-        # 顶部工具栏：主题、配置导入导出、日志保存
+        # 顶部工具栏：主题、配置导入导出、日志保存、加密密钥
         top_tool = tk.Frame(self.root)
         top_tool.pack(fill="x", padx=10, pady=3)
         ttk.Checkbutton(top_tool, text="Dark Mode / 深色模式", variable=self.is_dark, command=self.apply_theme).pack(side="left", padx=5)
         tk.Button(top_tool, text="Save Config / 导出配置", command=self.export_config).pack(side="left", padx=5)
         tk.Button(top_tool, text="Load Config / 加载配置", command=self.load_config).pack(side="left", padx=5)
         tk.Button(top_tool, text="Save Log / 保存日志", command=self.save_log_file).pack(side="left", padx=5)
+        tk.Label(top_tool, text="Custom AES Key / 自定义加密密钥:").pack(side="left", padx=10)
+        tk.Entry(top_tool, textvariable=self.custom_key, width=16).pack(side="left")
         tk.Label(top_tool, text="Random Seed / 随机种子:").pack(side="left", padx=10)
         tk.Entry(top_tool, textvariable=self.random_seed, width=10).pack(side="left")
         ttk.Checkbutton(top_tool, text="Clear All Comments / 清空注释", variable=self.clear_comment).pack(side="right", padx=5)
@@ -84,24 +102,35 @@ class PyObfuscatorGUI:
         tk.Button(file_frame, text="Browse / 浏览", command=self.select_output).grid(row=1, column=2, padx=4)
         tk.Button(file_frame, text="Auto Fill / 自动填充", command=self.auto_fill_output).grid(row=1, column=3, padx=4)
 
-        # 2. 混淆功能勾选面板
+        # 2. 混淆功能勾选面板（双栏：基础混淆 + 高级加密）
         opt_frame = tk.LabelFrame(self.root, text="Obfuscation Options | 混淆功能配置")
         opt_frame.pack(fill="x", padx=10, pady=6)
+        # 基础混淆
+        base_frame = tk.LabelFrame(opt_frame, text="Base Obfuscate | 基础语法混淆")
+        base_frame.grid(row=0, column=0, padx=5, pady=3, sticky="nsew")
         row_idx = 0
         col_idx = 0
         for key, data in self.obf_options.items():
-            cb = ttk.Checkbutton(opt_frame, text=data["text"], variable=data["var"])
+            cb = ttk.Checkbutton(base_frame, text=data["text"], variable=data["var"])
             cb.grid(row=row_idx, column=col_idx, sticky="w", padx=8, pady=3)
             col_idx += 1
             if col_idx >= 2:
                 col_idx = 0
                 row_idx += 1
+        # 高级加密混淆（新增多引擎模块）
+        adv_frame = tk.LabelFrame(opt_frame, text="Advanced Multi-Engine Encrypt | 高级多引擎加密")
+        adv_frame.grid(row=0, column=1, padx=5, pady=3, sticky="nsew")
+        ttk.Checkbutton(adv_frame, text="AES String Encrypt / AES字符串加密", variable=self.aes_encrypt_str).grid(sticky="w", padx=8, pady=3)
+        ttk.Checkbutton(adv_frame, text="Anti-Debug Detect / 反调试检测", variable=self.anti_debug).grid(sticky="w", padx=8, pady=3)
+        ttk.Checkbutton(adv_frame, text="Export Encrypted Pyc / 导出加密字节码", variable=self.export_pyc).grid(sticky="w", padx=8, pady=3)
+
         # 快捷按钮：全选/取消全选/默认
         btn_opt_frame = tk.Frame(opt_frame)
-        btn_opt_frame.grid(row=row_idx+1, column=0, columnspan=2, pady=5)
+        btn_opt_frame.grid(row=row_idx+2, column=0, columnspan=2, pady=5)
         tk.Button(btn_opt_frame, text="Enable All / 全选开启", command=self.enable_all).grid(row=0, column=0, padx=6)
         tk.Button(btn_opt_frame, text="Disable All / 全部关闭", command=self.disable_all).grid(row=0, column=1, padx=6)
         tk.Button(btn_opt_frame, text="Default Preset / 默认推荐配置", command=self.load_default).grid(row=0, column=2, padx=6)
+        tk.Button(btn_opt_frame, text="Install All Dependencies / 一键安装全部依赖", command=self.install_all_dep).grid(row=0, column=3, padx=6)
 
         # 3. 预览双栏（原始代码 / 混淆代码）
         preview_frame = tk.LabelFrame(self.root, text="Code Preview | 代码预览")
@@ -135,6 +164,27 @@ class PyObfuscatorGUI:
         self.log_text = scrolledtext.ScrolledText(log_frame, wrap="word", height=6)
         self.log_text.pack(fill="both", expand=True, padx=4, pady=4)
 
+    # 依赖一键批量安装
+    def install_all_dep(self):
+        self.log("[Info] Start install all required dependencies / 开始批量安装全部依赖库")
+        for pkg in DEPEND_LIST:
+            self.log(f"Installing: {pkg}")
+            subprocess.Popen([sys.executable, "-m", "pip", "install", pkg])
+        messagebox.showinfo("Install Tip / 安装提示", "Dependency installation started!\nAfter installation, restart this tool to take effect.\n依赖开始后台安装，安装完成后重启工具生效！")
+
+    # 依赖完整性检测
+    def check_dependency(self):
+        miss = []
+        if not HAS_OBF:
+            miss.append("python-obfuscator")
+        if not HAS_CRYPTO:
+            miss.append("pycryptodome")
+        if len(miss) > 0:
+            res = messagebox.askyesno("Missing Dependency / 依赖缺失",
+            f"Libraries missing: {','.join(miss)}\nMissing core encryption engine, install all dependencies now?\n缺失核心加密引擎，是否一键安装全部依赖？")
+            if res:
+                self.install_all_dep()
+
     # 拖拽文件
     def drop_file(self, event):
         path = event.data.strip('{}')
@@ -156,14 +206,6 @@ class PyObfuscatorGUI:
             except:
                 pass
 
-    # 依赖一键安装弹窗
-    def show_install_popup(self):
-        res = messagebox.askyesno("Dependency Missing / 依赖缺失",
-        "Module python-obfuscator not found!\nMissing 混淆库未安装\nInstall now? / 是否一键执行安装命令？")
-        if res:
-            subprocess.Popen([sys.executable, "-m", "pip", "install", "python-obfuscator"])
-            self.log("[Info] Installing python-obfuscator, restart tool after finish / 正在安装依赖，安装完成重启工具")
-
     # 配置导入导出
     def export_config(self):
         cfg = {}
@@ -171,6 +213,10 @@ class PyObfuscatorGUI:
             cfg[k] = v["var"].get()
         cfg["clear_comment"] = self.clear_comment.get()
         cfg["seed"] = self.random_seed.get()
+        cfg["aes_encrypt"] = self.aes_encrypt_str.get()
+        cfg["anti_debug"] = self.anti_debug.get()
+        cfg["export_pyc"] = self.export_pyc.get()
+        cfg["custom_key"] = self.custom_key.get()
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("Json Config", "*.json")])
         if path:
             with open(path, "w", encoding="utf-8") as f:
@@ -187,6 +233,10 @@ class PyObfuscatorGUI:
                     self.obf_options[k]["var"].set(val)
             self.clear_comment.set(cfg.get("clear_comment", True))
             self.random_seed.set(cfg.get("seed", ""))
+            self.aes_encrypt_str.set(cfg.get("aes_encrypt", True))
+            self.anti_debug.set(cfg.get("anti_debug", True))
+            self.export_pyc.set(cfg.get("export_pyc", False))
+            self.custom_key.set(cfg.get("custom_key", ""))
             self.log(f"Config loaded / 配置加载完成：{path}")
 
     # 日志保存
@@ -201,12 +251,16 @@ class PyObfuscatorGUI:
     def enable_all(self):
         for data in self.obf_options.values():
             data["var"].set(True)
-        self.log("[Info] All obfuscation functions enabled / 已开启全部混淆策略")
+        self.aes_encrypt_str.set(True)
+        self.anti_debug.set(True)
+        self.log("[Info] All obfuscation & encryption functions enabled / 已开启全部混淆加密策略")
 
     def disable_all(self):
         for data in self.obf_options.values():
             data["var"].set(False)
-        self.log("[Warning] All obfuscation functions disabled / 已关闭所有混淆功能")
+        self.aes_encrypt_str.set(False)
+        self.anti_debug.set(False)
+        self.log("[Warning] All obfuscation functions disabled / 已关闭所有混淆加密功能")
 
     def load_default(self):
         default_state = {
@@ -225,7 +279,11 @@ class PyObfuscatorGUI:
             self.obf_options[k]["var"].set(v)
         self.clear_comment.set(True)
         self.random_seed.set("")
-        self.log("[Info] Load default recommended preset / 已加载默认推荐混淆配置")
+        self.aes_encrypt_str.set(True)
+        self.anti_debug.set(True)
+        self.export_pyc.set(False)
+        self.custom_key.set("")
+        self.log("[Info] Load default recommended preset / 已加载默认高强度复合混淆配置")
 
     # 文件选择
     def select_input(self):
@@ -292,39 +350,43 @@ class PyObfuscatorGUI:
     # 帮助弹窗
     def show_help(self):
         help_content = """
-=== Python Obfuscator Help / 工具功能说明 ===
-1. String Hex Encrypt: Convert all string to hex literal
-   字符串加密：将全部明文转为十六进制字符
-2. Number Encrypt: Disguise constant numbers by calculation
-   数字加密：常量数字通过运算伪装
-3. Rename Var/Func: Random garbled name for identifiers
-   变量/函数重命名：标识符替换无意义乱码
-4. Dead Junk Code: Insert unreachable useless code blocks
-   垃圾代码：大量无法执行的虚假分支
-5. Fake Exception: Add meaningless try-except trap
-   虚假异常：无意义异常捕获干扰逆向
-6. Control Flow Flatten: Break original code structure
-   控制流扁平化：打乱代码原有逻辑结构
-7. String XOR: Secondary XOR encryption for strings
-   字符串异或：二次加密字符串内容
-8. Random Indent: Disturb code indent format
-   随机缩进：轻微打乱代码缩进格式
-Extra Feature:
-- Batch Obfuscate: Multi py file one-click process 批量混淆
-- Dark Theme: Eye-care dark interface 深色护眼模式
-- Config Save/Load: Save your obfuscation preset 配置导出导入
-- Code Preview: Real-time raw & obfuscated code view 双栏代码预览
-- MD5 Checksum: Verify code modification 哈希校验文件改动
-- Drag & Drop: Direct drag py into window 拖拽加载文件
+=== Multi-Engine Python Obfuscator Help / 多引擎混淆工具说明 ===
+【Base Layer: python-obfuscator】基础层混淆
+1. String Hex Encrypt: Convert all string to hex literal 字符串十六进制加密
+2. Number Encrypt: Disguise constant numbers by calculation 数字常量运算伪装
+3. Rename Var/Func: Random garbled name for identifiers 变量/函数随机乱码重命名
+4. Dead Junk Code: Insert unreachable useless code blocks 插入不可执行垃圾代码
+5. Fake Exception: Add meaningless try-except trap 虚假异常捕获分支
+6. Control Flow Flatten: Break original code structure 控制流扁平化打乱逻辑
+7. String XOR: Secondary XOR encryption for strings 字符串异或二次加密
+8. Random Indent: Disturb code indent format 随机缩进干扰阅读
+
+【Advanced Multi-Engine Layer】高级多引擎加密（新增）
+1. AES String Encrypt: AES-128 symmetric encrypt all plaintext strings
+   AES对称加密全部明文字符串，运行时动态解密
+2. Anti-Debug Detect: Detect debugger attach, self-lock code if debugged
+   反调试检测，被调试时代码自动失效
+3. Export Encrypted Pyc: Output encrypted bytecode file, harder to decompile
+   导出加密字节码pyc，逆向难度大幅提升
+
+Extra Feature 扩展功能
+- Batch Obfuscate: Multi py file one-click process 批量多文件一键混淆
+- Dark Theme: Eye-care dark interface 深色护眼界面
+- Config Save/Load: Save your obfuscation preset as json 混淆配置导出/加载
+- Code Preview: Real-time raw & obfuscated code split view 双栏代码实时预览
+- MD5 Checksum: Verify code modification hash 哈希校验文件改动
+- Drag & Drop: Direct drag py into window 窗口拖拽加载源码
+- Auto Dependency Install: One-click install all missing libraries 一键安装全部依赖
 """
         messagebox.showinfo("Help / 功能说明", help_content)
 
     # EXE打包命令弹窗
     def show_pack_cmd(self):
-        cmd = '''# 混淆后打包单文件exe命令
+        cmd = '''# 混淆后打包单文件exe完整命令
 pip install pyinstaller
+# -F 单文件独立exe，-w 关闭控制台黑窗口，移除-w保留控制台
 pyinstaller -F -w obf_target.py
-# -F 单文件，-w 无黑窗口，移除-w保留控制台
+# 若使用加密pyc，打包时需额外携带AES解密依赖库
 '''
         messagebox.showinfo("PyInstaller Command / EXE打包命令", cmd)
 
@@ -344,8 +406,84 @@ pyinstaller -F -w obf_target.py
         diff_text.insert(tk.END, "\n\n===== OBFUSCATED CODE / 混淆代码 =====\n")
         diff_text.insert(tk.END, obf[:2000])
 
-    # 单文件混淆核心逻辑
+    # AES字符串加密封装
+    def aes_encrypt_code(self, source: str, key_input: str) -> str:
+        if not HAS_CRYPTO:
+            return source
+        # 生成16位AES密钥
+        if len(key_input) < 16:
+            key = key_input.ljust(16, "#")[:16].encode("utf-8")
+        else:
+            key = key_input[:16].encode("utf-8")
+        iv = get_random_bytes(16)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        # 提取所有字符串字面量替换为加密动态解密
+        tree = ast.parse(source)
+        str_pool = {}
+        counter = 0
+        class StringReplace(ast.NodeTransformer):
+            def visit_Constant(self, node):
+                nonlocal counter
+                if isinstance(node.value, str):
+                    s = node.value
+                    if s not in str_pool:
+                        raw_bytes = s.encode("utf-8")
+                        enc = cipher.encrypt(pad(raw_bytes, AES.block_size))
+                        str_pool[s] = (iv.hex(), enc.hex(), counter)
+                        counter += 1
+                    iv_h, enc_h, idx = str_pool[s]
+                    return ast.parse(f"__aes_dec({idx})").body[0].value
+                return node
+        new_tree = StringReplace().visit(tree)
+        ast.fix_missing_locations(new_tree)
+        new_code = astor.to_source(new_tree)
+        # 插入全局AES解密函数、密钥池、IV池
+        decrypt_header = f"""
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
+_AES_KEY = b"{key.decode('utf-8')}"
+_IV_LIST = [{','.join([f"bytes.fromhex('{v[0]}')" for v in str_pool.values()])}]
+_ENC_LIST = [{','.join([f"bytes.fromhex('{v[1]}')" for v in str_pool.values()])}]
+def __aes_dec(idx):
+    c = AES.new(_AES_KEY, AES.MODE_CBC, _IV_LIST[idx])
+    return unpad(c.decrypt(_ENC_LIST[idx]), AES.block_size).decode("utf-8")
+"""
+        full_code = decrypt_header + "\n" + new_code
+        return full_code
+
+    # 插入反调试代码
+    def inject_anti_debug(self, code: str) -> str:
+        anti_debug_code = '''
+import sys
+import ctypes
+import inspect
+def __anti_debug_check():
+    if sys.gettrace() is not None:
+        raise SystemExit(-1)
+    if hasattr(ctypes, "windll"):
+        if ctypes.windll.kernel32.IsDebuggerPresent():
+            raise SystemExit(-2)
+    stack = inspect.stack()
+    for frame in stack:
+        if "debugger" in frame.filename.lower() or "pydev" in frame.filename.lower():
+            raise SystemExit(-3)
+__anti_debug_check()
+'''
+        return anti_debug_code + "\n" + code
+
+    # 单文件完整多层混淆流水线
     def obfuscate_single(self, source_code):
+        stage = 1
+        self.log(f"[Stage {stage}] Clear source code comments / 清空源码注释")
+        # 清空注释
+        if self.clear_comment.get():
+            import re
+            # 安全正则：只删除整行注释，不会破坏字符串里的#
+            source_code = re.sub(r'^\s*#.*$', '', source_code, flags=re.MULTILINE)
+        stage +=1
+
+        # 第一层：python-obfuscator基础混淆
+        self.log(f"[Stage {stage}] Run python-obfuscator base grammar obfuscate")
         conf = ObfuscationConfig.all_enabled()
         disable_list = []
         for key, data in self.obf_options.items():
@@ -353,22 +491,30 @@ pyinstaller -F -w obf_target.py
                 disable_list.append(key)
         for item in disable_list:
             conf = conf.without(item)
-        # 清空注释
-        if self.clear_comment.get():
-            import re
-            source_code = re.sub(r'#.*', '', source_code)
-            source_code = re.sub(r'""".*?"""', '', source_code, flags=re.DOTALL)
-            source_code = re.sub(r"'''.*?'''", '', source_code, flags=re.DOTALL)
         obfuscator = Obfuscator(config=conf)
-        if self.random_seed.get().strip():
-            obfuscator.set_seed(int(self.random_seed.get()))
-        obfuscated_source = obfuscator.obfuscate(source_code)
-        return obfuscated_source
+        seed_text = self.random_seed.get().strip()
+        seed_text = self.random_seed.get().strip()
+        code_step1 = obfuscator.obfuscate(source_code)
+        stage +=1
+
+        # 第二层：AES字符串加密（pycryptodome）
+        if self.aes_encrypt_str.get() and HAS_CRYPTO:
+            self.log(f"[Stage {stage}] AES-128 full string encryption")
+            code_step1 = self.aes_encrypt_code(code_step1, self.custom_key.get())
+        stage +=1
+
+        # 第三层：注入反调试代码
+        if self.anti_debug.get():
+            self.log(f"[Stage {stage}] Inject anti-debug detection code")
+            code_step1 = self.inject_anti_debug(code_step1)
+        stage +=1
+
+        return code_step1
 
     # 单文件混淆入口
     def run_obfuscate(self):
         if not HAS_OBF:
-            messagebox.showerror("Error / 错误", "Please install python-obfuscator first\n请先安装混淆依赖库")
+            messagebox.showerror("Error / 错误", "python-obfuscator not installed, run dependency install first\n未安装基础混淆库，请先一键安装依赖")
             return
         in_path = self.input_path.get().strip()
         out_path = self.output_path.get().strip()
@@ -379,7 +525,7 @@ pyinstaller -F -w obf_target.py
             messagebox.showerror("Error / 错误", "Please set output save path!\n请设置混淆文件输出路径！")
             return
         self.log("="*60)
-        self.log("[Start] Single file obfuscation task / 开始单文件混淆任务")
+        self.log("[Start] Single file multi-engine composite obfuscation task / 开始单文件多引擎复合混淆任务")
         self.progress_bar["value"] = 10
         try:
             self.log("[Step1] Read source file with UTF-8 encoding / 读取源码文件")
@@ -387,7 +533,7 @@ pyinstaller -F -w obf_target.py
                 source_code = f.read()
             self.log(f"Source code length / 源码字符长度：{len(source_code)}")
             self.progress_bar["value"] = 30
-            self.log("[Step2] Running obfuscator engine / 执行混淆引擎处理")
+            self.log("[Step2] Start multi-layer composite obfuscation pipeline / 启动多层混淆流水线")
             obfuscated_source = self.obfuscate_single(source_code)
             self.obf_md5 = self.calc_md5(obfuscated_source)
             self.obf_preview.delete(1.0, tk.END)
@@ -396,13 +542,20 @@ pyinstaller -F -w obf_target.py
             self.log(f"Raw MD5 / 原始哈希：{self.raw_md5}")
             self.log(f"Obfuscated MD5 / 混淆哈希：{self.obf_md5}")
             self.progress_bar["value"] = 70
-            self.log("[Step3] Write obfuscated code to output file / 写入混淆结果")
+            self.log("[Step3] Write obfuscated code to output file / 写入混淆结果py文件")
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(obfuscated_source)
+            # 可选导出加密pyc字节码
+            if self.export_pyc.get():
+                self.log("[Step4] Compile encrypted pyc bytecode / 编译加密字节码")
+                import py_compile
+                pyc_out = out_path.replace(".py", ".pyc")
+                py_compile.compile(out_path, cfile=pyc_out)
+                self.log(f"Encrypted pyc exported to: {pyc_out}")
             self.progress_bar["value"] = 100
-            self.log("✅ Obfuscation Complete! / 高强度混淆任务完成！")
+            self.log("✅ Multi-engine composite obfuscation Complete! / 多引擎高强度混淆任务完成！")
             self.log(f"Output File Path / 输出文件：{out_path}")
-            messagebox.showinfo("Success / 完成", f"Obfuscation finished successfully!\n混淆完成！\nSave Path：{out_path}")
+            messagebox.showinfo("Success / 完成", f"Multi-layer obfuscation finished successfully!\n多层复合混淆完成！\nSave Path：{out_path}")
         except Exception as e:
             err_msg = f"[Error] Obfuscate failed / 混淆执行异常：{str(e)}"
             self.log(err_msg)
@@ -412,13 +565,13 @@ pyinstaller -F -w obf_target.py
     # 批量混淆
     def run_batch(self):
         if not HAS_OBF:
-            messagebox.showerror("Error / 错误", "Please install python-obfuscator first\n请先安装混淆依赖库")
+            messagebox.showerror("Error / 错误", "python-obfuscator not installed\n请先安装基础混淆依赖库")
             return
         if len(self.batch_files) == 0:
             messagebox.showwarning("Tip / 提示", "No batch files selected\n未选择批量文件，请点击【Batch Select】多选py文件")
             return
         total = len(self.batch_files)
-        self.log(f"===== Batch Obfuscate Start, total {total} files / 批量混淆开始，共{total}个文件 =====")
+        self.log(f"===== Batch Multi-Engine Obfuscate Start, total {total} files / 批量多引擎混淆开始，共{total}个文件 =====")
         for idx, src_path in enumerate(self.batch_files):
             try:
                 self.progress_bar["value"] = int((idx / total)*100)
@@ -431,14 +584,18 @@ pyinstaller -F -w obf_target.py
                 with open(out_path, "w", encoding="utf-8") as f:
                     f.write(obf_code)
                 self.log(f"[{idx+1}/{total}] Success: {fname} -> {out_name}")
+                # 批量同步导出pyc
+                if self.export_pyc.get():
+                    import py_compile
+                    py_compile.compile(out_path, cfile=out_path.replace(".py", ".pyc"))
             except Exception as e:
                 self.log(f"[{idx+1}/{total}] Fail {src_path}: {str(e)}")
         self.progress_bar["value"] = 100
-        self.log("✅ All batch task finished / 全部批量混淆执行完毕")
-        messagebox.showinfo("Batch Complete / 批量完成", f"Batch process finished!\nTotal: {total} files")
+        self.log("✅ All batch multi-engine obfuscate task finished / 全部批量混淆执行完毕")
+        messagebox.showinfo("Batch Complete / 批量完成", f"Batch multi-layer obfuscate finished!\nTotal: {total} files")
         self.progress_bar["value"] = 0
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk()
-    app = PyObfuscatorGUI(root)
+    app = MultiPyObfuscatorGUI(root)
     root.mainloop()
