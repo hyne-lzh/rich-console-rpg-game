@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 # 日志
 *.log
+*.json
