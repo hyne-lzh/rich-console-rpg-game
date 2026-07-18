@@ -1,0 +1,7 @@
+# 存档文件
+game_save.json
+# python缓存
+__pycache__/
+*.pyc
+# 日志
+*.log
