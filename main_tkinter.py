@@ -340,7 +340,7 @@ class GameGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Rich Console RPG | 硬核控制台打怪游戏")
-        self.root.geometry("1150x780")
+        self.root.geometry("1400x780")
 
         # 顶部左右分栏
         top_frame = tk.Frame(root)
@@ -388,20 +388,20 @@ class GameGUI:
         btn_frame.pack(fill=tk.X, padx=10, pady=8)
 
         # 战斗技能按钮
-        tk.Button(btn_frame, text="Basic ATK (A) / 普攻", width=14, command=lambda: self.do_battle_skill("atk")).grid(row=0, column=0, padx=3)
-        tk.Button(btn_frame, text="Rage (W) / 狂暴", width=14, command=lambda: self.do_battle_skill("rage")).grid(row=0, column=1, padx=3)
-        tk.Button(btn_frame, text="Shield (S) / 护盾", width=14, command=lambda: self.do_battle_skill("shield")).grid(row=0, column=2, padx=3)
-        tk.Button(btn_frame, text="Heal (D) / 回血", width=14, command=lambda: self.do_battle_skill("heal")).grid(row=0, column=3, padx=3)
-        tk.Button(btn_frame, text="Flee (ESC) / 逃离", width=14, command=self.flee_battle).grid(row=0, column=4, padx=3)
+        tk.Button(btn_frame, text="Basic ATK (A) / 普攻", width=25, command=lambda: self.do_battle_skill("atk")).grid(row=0, column=0, padx=3)
+        tk.Button(btn_frame, text="Rage (W) / 狂暴", width=25, command=lambda: self.do_battle_skill("rage")).grid(row=0, column=1, padx=3)
+        tk.Button(btn_frame, text="Shield (S) / 护盾", width=25, command=lambda: self.do_battle_skill("shield")).grid(row=0, column=2, padx=3)
+        tk.Button(btn_frame, text="Heal (D) / 回血", width=25, command=lambda: self.do_battle_skill("heal")).grid(row=0, column=3, padx=3)
+        tk.Button(btn_frame, text="Flee (ESC) / 逃离", width=25, command=self.flee_battle).grid(row=0, column=4, padx=3)
 
         # 系统功能按钮
-        tk.Button(btn_frame, text="Start Battle / 开始战斗", width=14, command=self.start_battle).grid(row=1, column=0, padx=3, pady=4)
-        tk.Button(btn_frame, text="Switch Monster / 切换怪物", width=14, command=self.select_monster).grid(row=1, column=1, padx=3, pady=4)
-        tk.Button(btn_frame, text="Level Up / 角色升级", width=14, command=self.upgrade_lv).grid(row=1, column=2, padx=3, pady=4)
-        tk.Button(btn_frame, text="Potion Shop / 药水商店", width=14, command=self.open_potion_shop).grid(row=1, column=3, padx=3, pady=4)
-        tk.Button(btn_frame, text="Equip Shop / 装备商店", width=14, command=self.open_equip_shop).grid(row=1, column=4, padx=3, pady=4)
-        tk.Button(btn_frame, text="Achievements / 成就", width=14, command=self.show_ach).grid(row=1, column=5, padx=3, pady=4)
-        tk.Button(btn_frame, text="Save Game / 手动存档", width=14, command=save_game).grid(row=1, column=6, padx=3, pady=4)
+        tk.Button(btn_frame, text="Start Battle / 开始战斗", width=25, command=self.start_battle).grid(row=1, column=0, padx=3, pady=4)
+        tk.Button(btn_frame, text="Switch Monster / 切换怪物", width=25, command=self.select_monster).grid(row=1, column=1, padx=3, pady=4)
+        tk.Button(btn_frame, text="Level Up / 角色升级", width=25, command=self.upgrade_lv).grid(row=1, column=2, padx=3, pady=4)
+        tk.Button(btn_frame, text="Potion Shop / 药水商店", width=25, command=self.open_potion_shop).grid(row=1, column=3, padx=3, pady=4)
+        tk.Button(btn_frame, text="Equip Shop / 装备商店", width=25, command=self.open_equip_shop).grid(row=1, column=4, padx=3, pady=4)
+        tk.Button(btn_frame, text="Achievements / 成就", width=25, command=self.show_ach).grid(row=1, column=5, padx=3, pady=4)
+        tk.Button(btn_frame, text="Save Game / 手动存档", width=25, command=save_game).grid(row=1, column=6, padx=3, pady=4)
 
         self.refresh_ui()
 
@@ -428,7 +428,7 @@ class GameGUI:
         self.monster_labels["Monster Name / 怪物名称"].config(text=game_data["monster_name"])
         self.monster_labels["HP / 血量"].config(text=f"{m_data['hp']}/{m_data['max_hp']}")
         self.monster_labels["ATK / 攻击"].config(text=str(m_data["attack"]))
-        self.monster_labels["DEF / 防御"].config(text=str(m_data["def"]))
+        self.monster_labels["DEF / 防御"].config(text=str(m_data["defend"]))
         self.monster_labels["Gold Reward / 击杀金币"].config(text=str(m_data["gold"]))
 
     def start_battle(self):
@@ -562,10 +562,10 @@ class GameGUI:
         win = tk.Toplevel(self.root)
         win.title("Achievement List / 成就列表")
         row = 0
-        tk.Label(win, text="Name / 成就名称", width=22).grid(row=row, column=0, padx=5, pady=3)
-        tk.Label(win, text="Condition / 条件", width=16).grid(row=row, column=1, padx=5, pady=3)
-        tk.Label(win, text="Reward Gold / 奖励金币", width=14).grid(row=row, column=2, padx=5, pady=3)
-        tk.Label(win, text="Status / 状态", width=12).grid(row=row, column=3, padx=5, pady=3)
+        tk.Label(win, text="Name / 成就名称", width=25).grid(row=row, column=0, padx=5, pady=3)
+        tk.Label(win, text="Condition / 条件", width=25).grid(row=row, column=1, padx=5, pady=3)
+        tk.Label(win, text="Reward Gold / 奖励金币", width=25).grid(row=row, column=2, padx=5, pady=3)
+        tk.Label(win, text="Status / 状态", width=25).grid(row=row, column=3, padx=5, pady=3)
         row += 1
         for name, info in game_data["achievements"].items():
             cond = str(info["need"])
