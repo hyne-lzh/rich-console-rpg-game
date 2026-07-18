@@ -169,10 +169,10 @@ console_game/
    全部文本同步支持中英双语展示，无需额外语言切换配置
 4. If KeyError appears during startup, check whether the monster/character dictionary key name is `defend` (not `def`)
    启动出现KeyError报错时，检查怪物/角色字典防御字段键名应为`defend`，不可简写为Python keyword `def`
-```
+
 
 # README.md 多引擎复合混淆工具双语文档
-```
+
 # Multi-Engine Python Obfuscator GUI
 A bilingual multi-layer composite Python code obfuscation tool based on `python-obfuscator` + AES symmetric encryption + anti-debug detection, with complete Tkinter graphical interactive interface.
 一款基于 python-obfuscator + AES对称加密 + 反调试检测构建的双语多层复合Python代码混淆工具，配套完整Tkinter图形交互界面。
