@@ -23,6 +23,9 @@ S：护盾技能（消耗药水，3 回合防御翻倍）
 D：瞬间回血 120 血量
 ESC：逃离当前战斗
 
+
+
+
 # Rich Real-Time Keypress Combat RPG (Console Edition)
 A text-based adventure game built for Python console, styled with Rich library, featuring global real-time keyboard combat controls.
 
